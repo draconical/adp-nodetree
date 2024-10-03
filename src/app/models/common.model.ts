@@ -8,7 +8,7 @@ export type TreeNode = {
   id: number;
   name: string;
   leaf: boolean;
-  indexPath: string;
+  idPath: string;
   children?: TreeNode[];
 };
 

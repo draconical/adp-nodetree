@@ -1,4 +1,5 @@
 node_modules
+.angular
 
 # Ignore Mac DS_Store files
 .DS_Store

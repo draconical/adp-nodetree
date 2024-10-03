@@ -1,0 +1,13 @@
+<h1 mat-dialog-title>Создание дочернего элемента</h1>
+<div mat-dialog-content>
+  <p>Укажите название для нового элемента</p>
+  <mat-form-field appearance="outline">
+    <input [formControl]="nodeName" matInput placeholder="Введите название">
+    <mat-error *ngIf="nodeName.hasError('required')">Обязательное поле</mat-error>
+        <mat-error *ngIf="nodeName.hasError('minlength')">Укажите не менее 2 символов</mat-error>
+  </mat-form-field>
+</div>
+<div mat-dialog-actions>
+  <button mat-raised-button (click)="cancelClickHandler()">Отмена</button>
+  <button mat-raised-button color="primary" (click)="createClickHandler()">Создать</button>
+</div>
