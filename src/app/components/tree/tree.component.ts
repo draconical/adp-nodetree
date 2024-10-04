@@ -44,7 +44,7 @@ export class TreeComponent implements OnInit {
           name: node.name ?? '',
           leaf: !!!node.children,
           idPath: parentNode ? parentNode.idPath + '>' + index.toString() : index.toString(),
-          children: parentNode?.children ?? [],
+          children: parentNode?.children ? [...parentNode.children] : [],
         }
 
         if (!newNode.leaf && node?.children) {
@@ -114,25 +114,27 @@ export class TreeComponent implements OnInit {
       disableClose: true, autoFocus: false
     });
 
-    dialogRef.afterClosed().subscribe(result => {
+    dialogRef.beforeClosed().subscribe(result => {
       if (result) {
         const parentNode = this._selectedNode;
 
-        const newNodeId = this._selectedNode.children.length > 0
+        const newNodeId = parentNode.children.length > 0
           ? parentNode.children![parentNode.children!.length - 1].id + 1 : 1;
 
         const newNode: TreeNode = {
           id: newNodeId,
           name: result,
           leaf: true,
-          idPath: parentNode ? parentNode.idPath + '>' + newNodeId.toString() : newNodeId.toString(),
+          idPath: parentNode.idPath + '>' + newNodeId.toString(),
           children: []
         }
 
         parentNode.children.push(newNode);
 
         // Проверка на leaf
-        this._checkNodeIsLeaf(this._selectedNode);
+        this._checkNodeIsLeaf(parentNode);
+
+        console.log(this.treeData);
 
         this._refreshTree();
       }
