@@ -1,8 +1,9 @@
+import { DataService } from './../../services/data.service';
 import { NestedTreeControl } from '@angular/cdk/tree';
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTreeNestedDataSource } from '@angular/material/tree';
-import { TreeNode, Tree } from 'src/app/models/common.model';
+import { TreeNode, Tree, TreeNodeResponse } from 'src/app/models/common.model';
 import { NewNodeDialogComponent } from '../new-node-dialog/new-node-dialog.component';
 
 function isTree(element: TreeNode | Tree): element is Tree {
@@ -13,6 +14,7 @@ function isTree(element: TreeNode | Tree): element is Tree {
   selector: 'app-tree',
   templateUrl: './tree.component.html',
   styleUrls: ['./tree.component.scss'],
+  providers: [DataService],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TreeComponent implements OnInit {
@@ -23,64 +25,26 @@ export class TreeComponent implements OnInit {
 
   treeData: Tree = [];
 
-  constructor(public dialog: MatDialog) { }
+  constructor(private dataService: DataService, public dialog: MatDialog) { }
 
   ngOnInit(): void {
-    this._initData();
+    this.dataService.loadData().subscribe((response) => {
+      this._initData(response);
+    });
   }
 
-  private _initData(): void {
-    const loadedData = [
-      {
-        name: "guitars",
-        children: [
-          {
-            name: "acoustic",
-            children: [
-              { name: "Kremona" },
-              { name: "Epiphone" },
-              { name: "Gibson" },
-              { name: "Yamaha" },
-            ],
-          },
-          {
-            name: "electric",
-            children: [
-              {
-                name: "Fender",
-                children: [
-                  { name: "Telecaster", },
-                  { name: "Stratocaster", },
-                  { name: "Jaguar", },
-                ],
-              },
-              {
-                name: "Gibson",
-                children: [
-                  { name: "Les Paul", },
-                  { name: "SG", },
-                  { name: "ES-335", },
-                  { name: "ES-339", },
-                ],
-              },
-            ],
-          },
-          { name: "acoustic bass" },
-          { name: "electric bass" },
-        ],
-      },
-    ] as Partial<Tree>;
-
-    const fillGaps = (arr: Partial<Tree>, parentNode?: TreeNode): Tree => {
+  private _initData(loadedData: TreeNodeResponse): void {
+    const fillGaps = (arr: TreeNodeResponse[], parentNode?: TreeNode): Tree => {
       const formattedTree: Tree = [];
 
       // Нужно добавить id, leaf (возможно, path) для последующих расчётов
       arr.forEach((node, index) => {
         let newNode: TreeNode = {
           id: index,
-          name: node?.name ?? '',
-          leaf: !!!node?.children,
-          idPath: parentNode ? parentNode.idPath + '>' + index.toString() : index.toString()
+          name: node.name ?? '',
+          leaf: !!!node.children,
+          idPath: parentNode ? parentNode.idPath + '>' + index.toString() : index.toString(),
+          children: parentNode?.children ?? [],
         }
 
         if (!newNode.leaf && node?.children) {
@@ -93,11 +57,15 @@ export class TreeComponent implements OnInit {
       return formattedTree;
     }
 
-    this.treeData = fillGaps(loadedData);
+    this.treeData = fillGaps([loadedData]);
     this.dataSource.data = this.treeData;
   }
 
-  private _getNode(pathStr: string, nodeType: 'parent' | 'self' = 'self'): TreeNode | Tree {
+  private _checkNodeIsLeaf(node: TreeNode): void {
+    node.leaf = !(node.children.length > 0);
+  }
+
+  private _getNodesByPath(pathStr: string): Tree {
     // Моя гениальная функция для поиска родительского элемента
     const path: string[] = pathStr.split('>');
     const rootNode = this.treeData.find(node => node.id === +path[0])!;
@@ -106,18 +74,27 @@ export class TreeComponent implements OnInit {
 
     // Удаляем первый элемент, так как уже не актуален.
     path.shift();
-    if (path.length === 0) {
-      return nodeType === 'parent'
-        ? this.treeData : nodes[nodes.length - 1];
-    }
 
+    // Если нет, начинаем поиск вглубь
     path.forEach((id, index) => {
       const currentNode = nodes[index];
-      nodes.push(currentNode.children!.find(child => child.id === +id)!);
+      nodes.push(currentNode.children.find(child => child.id === +id)!);
     })
 
-    return nodeType === 'parent'
-      ? nodes[nodes.length - 2] : nodes[nodes.length - 1];
+    return nodes;
+  }
+
+  private _getPathString(pathStr: string): string {
+    const nodes = this._getNodesByPath(pathStr);
+
+    return nodes.map(node => node.name).join(' > ');
+  }
+
+  private _getParentNode(pathStr: string): TreeNode | Tree {
+    const nodes = this._getNodesByPath(pathStr);
+
+    // Возвращает либо предпоследний элемент (т. е. родительский)
+    return nodes[nodes.length - 2] ?? this.treeData;
   }
 
   private _refreshTree() {
@@ -126,9 +103,7 @@ export class TreeComponent implements OnInit {
     this.dataSource.data = _data;
   }
 
-
   nodeClickHandler(node: TreeNode): void {
-    console.log('You clicked on node: ', node);
     this._selectedNode = node;
   }
 
@@ -141,31 +116,23 @@ export class TreeComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        const parentNode = this._getNode(this._selectedNode.idPath);
+        const parentNode = this._selectedNode;
 
-        if (isTree(parentNode)) {
-          const newNodeId = parentNode[parentNode.length - 1].id + 1;
+        const newNodeId = this._selectedNode.children.length > 0
+          ? parentNode.children![parentNode.children!.length - 1].id + 1 : 1;
 
-          const newNode: TreeNode = {
-            id: newNodeId,
-            name: result,
-            leaf: true,
-            idPath: newNodeId.toString()
-          };
-
-          parentNode.push(newNode);
-        } else {
-          const newNodeId = parentNode.children![parentNode.children!.length - 1].id + 1;
-
-          const newNode: TreeNode = {
-            id: newNodeId,
-            name: result,
-            leaf: true,
-            idPath: parentNode ? parentNode.idPath + '>' + newNodeId.toString() : newNodeId.toString()
-          };
-
-          parentNode.children!.push(newNode);
+        const newNode: TreeNode = {
+          id: newNodeId,
+          name: result,
+          leaf: true,
+          idPath: parentNode ? parentNode.idPath + '>' + newNodeId.toString() : newNodeId.toString(),
+          children: []
         }
+
+        parentNode.children.push(newNode);
+
+        // Проверка на leaf
+        this._checkNodeIsLeaf(this._selectedNode);
 
         this._refreshTree();
       }
@@ -175,17 +142,25 @@ export class TreeComponent implements OnInit {
   deleteNode(): void {
     if (!this._selectedNode) return;
 
-    const parentNode = this._getNode(this._selectedNode.idPath, 'parent');
+    const parentNode = this._getParentNode(this._selectedNode.idPath);
 
+    // Пробиваем тип ноды на случай, если это само дерево
     if (isTree(parentNode)) {
       const selectedNodeIndex = parentNode.findIndex((item) => item.id === this._selectedNode.id)!;
       parentNode.splice(selectedNodeIndex, 1);
     } else {
-      const selectedNodeIndex = parentNode.children?.findIndex((item) => item.id === this._selectedNode.id)!;
-      parentNode.children?.splice(selectedNodeIndex, 1);
+      const selectedNodeIndex = parentNode.children.findIndex((item) => item.id === this._selectedNode.id)!;
+      parentNode.children.splice(selectedNodeIndex, 1);
+
+      // Проверка на leaf
+      this._checkNodeIsLeaf(parentNode);
     }
 
     this._refreshTree();
+  }
+
+  showPath(): void {
+    console.log('Путь до текущей ноды: ', this._getPathString(this._selectedNode.idPath));
   }
 
   hasChild = (_: number, node: TreeNode) => !node.leaf;

@@ -1,16 +1,14 @@
-export interface IFlatNode {
-  expandable: boolean;
+export type TreeNodeResponse = {
   name: string;
-  level: number;
-}
-
-export type TreeNode = {
-  id: number;
-  name: string;
-  leaf: boolean;
-  idPath: string;
-  children?: TreeNode[];
+  children?: TreeNodeResponse[];
 };
 
-export type Tree = TreeNode[];
+export type TreeNode = {
+  name: string;
+  id: number;
+  leaf: boolean;
+  idPath: string;
+  children: TreeNode[]
+}
 
+export type Tree = TreeNode[];
